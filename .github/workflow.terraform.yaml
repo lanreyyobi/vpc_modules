@@ -1,0 +1,53 @@
+name: Terraform automation
+
+on : 
+  push:
+    branches:
+      - test
+    
+jobs:
+  terraform-workflows:
+    runs-on: ubuntu-latest
+    env:
+        AWS_ACCESS_KEY_ID:${{ secrets.ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY:${{ secrets.SECRET_KEY }}
+    steps:
+      - name: echo
+        run : echo "Running terraform workflow"
+      - name: checkout
+        uses: actions/checkout@v5
+      - name: install terraform
+        uses: hashicorp/setup-terraform@v3
+      - name: initialize
+        run: terraform init
+      - name: fmt
+        run: terraform fmt
+      - name: plan
+        run: terraform plan
+
+  testing:
+    runs-on: ubuntu-latest
+    steps:
+      - name: lint
+        run: tflint
+      - name: checkov
+        run: |
+              if [ $? -eq 0 ]
+              then
+              terraform plan -out ${TF_PLAN}
+              terraform show -json ${TF_PLAN} | jq > ${TF_PLAN}.json
+              else
+              echo "You need to fix your code!!!"
+              exit 1
+              fi
+
+              python3 -m venv checkov
+              source checkov/bin/activate
+              pip install checkov
+
+              checkov -f ${TF_PLAN}.json
+      - name: plan 
+        run: terraform plan
+      - name: apply
+        run: terraform apply -auto -approve          
+        
